@@ -178,3 +178,4 @@ cython_debug/
 *.json
 models/
 *.arrow
+*.h5
