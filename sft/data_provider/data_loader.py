@@ -8,7 +8,7 @@ import numpy as np
 import torch
 class Dataset_Custom(Dataset):
     def __init__(self, args, root_path, flag='train', size=None,
-                 features='S', data_path='ETTh1.csv',
+                 features='S', data_path='ETTh1.csv', aigc_data_path=None,
                  target='OT', scale=True, timeenc=0, freq='h', seasonal_patterns=None):
         # size [seq_len, label_len, pred_len]
         self.assets = []
@@ -38,16 +38,24 @@ class Dataset_Custom(Dataset):
 
         self.root_path = root_path
         self.data_path = data_path
+        self.aigc_data_path = aigc_data_path
         self.__read_data__()
 
     def __read_data__(self):
         self.scaler = StandardScaler()
+        
         df_raw = pd.read_parquet(os.path.join(self.root_path,
                                           self.data_path))
+        df_aigc = pd.read_parquet(os.path.join(self.root_path,
+                                          self.aigc_data_path))
+        
+        df_aigc = df_aigc.reindex(df_raw.index)
+        
         self.assets = df_raw.columns[1:].get_level_values(0).unique().values  
         self.n_assetes = len(self.assets)
         self.channels = df_raw.columns[1:].get_level_values(1).unique()
         self.n_channels = len(self.channels)
+        self.n_aigc_channels = len(df_aigc.columns[1:].get_level_values(1).unique())
         '''
         df_raw.columns: ['date', ...(other features), target feature]
         '''
@@ -59,8 +67,8 @@ class Dataset_Custom(Dataset):
         new_columns = [('date','')] + list(df_raw.columns[:-1])
         df_raw = df_raw[new_columns]
         
-        num_train = int(len(df_raw) * 0.7)
-        num_test = int(len(df_raw) * 0.03)
+        num_train = int(len(df_raw) * 0.98)
+        num_test = int(len(df_raw) * 0.02)
         num_vali = len(df_raw) - num_train - num_test
         border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
         border2s = [num_train, num_train + num_vali, len(df_raw)]
@@ -80,7 +88,10 @@ class Dataset_Custom(Dataset):
         else:
             data = df_data.values
 
+        aigc_data = df_aigc.values
         df_stamp = df_raw[['date']][border1:border2]
+        
+        
         self.timestamp = df_stamp.copy()
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
@@ -93,9 +104,14 @@ class Dataset_Custom(Dataset):
         elif self.timeenc == 1:
             data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
             data_stamp = data_stamp.transpose(1, 0)
+            # #merge df_aigc_data with data_stamp
+            # if self.aigc_data_path is not None:
+            #     df_aigc_data = df_aigc_data.to_numpy()
+            #     data_stamp = np.concatenate((data_stamp, df_aigc_data), axis=1)
 
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
+        self.data_aigc = aigc_data[border1:border2]
 
         if self.set_type == 0 and self.args.augmentation_ratio > 0:
             self.data_x, self.data_y, augmentation_tags = run_augmentation_single(self.data_x, self.data_y, self.args)
@@ -112,11 +128,15 @@ class Dataset_Custom(Dataset):
         seq_y = self.data_y[r_begin:r_end]
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
+        seq_aigc = self.data_aigc[s_begin:s_end]
         
         timestamp = self.timestamp.iloc[s_end].values[0]
         #timestamp = np.datetime64(timestamp).astype('datetime64[ms]').astype(np.int64)
         #reshape seq_x to [seq_len, n_assets, n_channels]
         seq_x = seq_x.reshape(self.seq_len, self.n_assetes, self.n_channels)
+        seq_aigc = seq_aigc.reshape(self.seq_len, self.n_assetes, self.n_aigc_channels)
+        #merge seq_x and seq_aigc
+        seq_x = np.concatenate((seq_x, seq_aigc), axis=2)
         #permute seq_x to [n_channels, seq_len, n_assets]
         seq_x = np.transpose(seq_x, (2, 0, 1))
         seq_y = seq_y.reshape(self.label_len + self.pred_len, self.n_assetes, self.n_channels)
