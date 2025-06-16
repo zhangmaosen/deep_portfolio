@@ -139,9 +139,10 @@ class Dataset_Custom(Dataset):
         #timestamp = np.datetime64(timestamp).astype('datetime64[ms]').astype(np.int64)
         #reshape seq_x to [seq_len, n_assets, n_channels]
         seq_x = seq_x.reshape(self.seq_len, self.n_assetes, self.n_channels)
-        seq_aigc = seq_aigc.reshape(self.seq_len, self.n_assetes, self.n_aigc_channels)
+        #seq_aigc = seq_aigc.reshape(self.seq_len, self.n_assetes, self.n_aigc_channels)
+        
         #merge seq_x and seq_aigc
-        seq_x = np.concatenate((seq_x, seq_aigc), axis=2)
+        seq_x_mark = np.concatenate((seq_x_mark, seq_aigc), axis=1)
         #permute seq_x to [n_channels, seq_len, n_assets]
         seq_x = np.transpose(seq_x, (2, 0, 1))
         seq_y = seq_y.reshape(self.label_len + self.pred_len, self.n_assetes, self.n_channels)
