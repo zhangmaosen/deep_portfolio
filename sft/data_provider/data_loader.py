@@ -46,16 +46,22 @@ class Dataset_Custom(Dataset):
         
         df_raw = pd.read_parquet(os.path.join(self.root_path,
                                           self.data_path))
-        df_aigc = pd.read_parquet(os.path.join(self.root_path,
-                                          self.aigc_data_path))
-        
-        df_aigc = df_aigc.reindex(df_raw.index)
+        # Handle AIGC data if provided
+        if self.aigc_data_path is not None:
+            df_aigc = pd.read_parquet(os.path.join(self.root_path, self.aigc_data_path))
+            df_aigc = df_aigc.reindex(df_raw.index)
+            self.n_aigc_channels = len(df_aigc.columns[1:].get_level_values(1).unique())
+            aigc_data = df_aigc.values
+        else:
+            # If no AIGC data, create an empty array with zero channels
+            aigc_data = np.zeros((len(df_raw), 0))
+            self.n_aigc_channels = 0
         
         self.assets = df_raw.columns[1:].get_level_values(0).unique().values  
         self.n_assetes = len(self.assets)
         self.channels = df_raw.columns[1:].get_level_values(1).unique()
         self.n_channels = len(self.channels)
-        self.n_aigc_channels = len(df_aigc.columns[1:].get_level_values(1).unique())
+
         '''
         df_raw.columns: ['date', ...(other features), target feature]
         '''
@@ -88,7 +94,6 @@ class Dataset_Custom(Dataset):
         else:
             data = df_data.values
 
-        aigc_data = df_aigc.values
         df_stamp = df_raw[['date']][border1:border2]
         
         
@@ -134,9 +139,10 @@ class Dataset_Custom(Dataset):
         #timestamp = np.datetime64(timestamp).astype('datetime64[ms]').astype(np.int64)
         #reshape seq_x to [seq_len, n_assets, n_channels]
         seq_x = seq_x.reshape(self.seq_len, self.n_assetes, self.n_channels)
-        seq_aigc = seq_aigc.reshape(self.seq_len, self.n_assetes, self.n_aigc_channels)
+        #seq_aigc = seq_aigc.reshape(self.seq_len, self.n_assetes, self.n_aigc_channels)
+        
         #merge seq_x and seq_aigc
-        seq_x = np.concatenate((seq_x, seq_aigc), axis=2)
+        seq_x_mark = np.concatenate((seq_x_mark, seq_aigc), axis=1)
         #permute seq_x to [n_channels, seq_len, n_assets]
         seq_x = np.transpose(seq_x, (2, 0, 1))
         seq_y = seq_y.reshape(self.label_len + self.pred_len, self.n_assetes, self.n_channels)
