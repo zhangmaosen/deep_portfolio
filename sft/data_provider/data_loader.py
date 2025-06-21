@@ -46,6 +46,8 @@ class Dataset_Custom(Dataset):
         
         df_raw = pd.read_parquet(os.path.join(self.root_path,
                                           self.data_path))
+        # get data from 2014 year
+        df_raw = df_raw[df_raw.index >= '2014-01-01']
         # Handle AIGC data if provided
         if self.aigc_data_path is not None:
             df_aigc = pd.read_parquet(os.path.join(self.root_path, self.aigc_data_path))
