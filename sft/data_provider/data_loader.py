@@ -47,7 +47,7 @@ class Dataset_Custom(Dataset):
         df_raw = pd.read_parquet(os.path.join(self.root_path,
                                           self.data_path))
         # get data from 2014 year
-        df_raw = df_raw[df_raw.index >= '2014-01-01']
+        df_raw = df_raw[(df_raw.index >= '2014-01-01') & (df_raw.index <= '2024-05-01')]
         # Handle AIGC data if provided
         if self.aigc_data_path is not None:
             df_aigc = pd.read_parquet(os.path.join(self.root_path, self.aigc_data_path))
@@ -75,8 +75,8 @@ class Dataset_Custom(Dataset):
         new_columns = [('date','')] + list(df_raw.columns[:-1])
         df_raw = df_raw[new_columns]
         
-        num_train = int(len(df_raw) * 0.92)
-        num_test = int(len(df_raw) * 0.02)
+        num_train = int(len(df_raw) * 0.8)
+        num_test = int(len(df_raw) * 0.1)
         num_vali = len(df_raw) - num_train - num_test
         border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
         border2s = [num_train, num_train + num_vali, len(df_raw)]
